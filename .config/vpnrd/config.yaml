@@ -1,0 +1,5 @@
+vpn_router_up_path: "/Users/YOU/vpn/singbox/vpn_router_up.sh"
+vpn_router_down_path: "/Users/YOU/vpn/singbox/vpn_router_down.sh"
+health_check_url: "https://api.ipify.org?format=text"
+check_interval: "10s"
+command_timeout: "20s"
