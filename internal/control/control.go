@@ -8,6 +8,8 @@ import (
 	"os/exec"
 	"strings"
 	"time"
+
+	"github.com/revolver-sys/vpn-router-daemon/internal/debugdump"
 )
 
 type Result struct {
@@ -16,11 +18,13 @@ type Result struct {
 	Stderr   string
 }
 
-func RunScript(ctx context.Context, path string, timeout time.Duration) (*Result, error) {
+func RunScript(ctx context.Context, path string, timeout time.Duration, args ...string) (*Result, error) {
+	// 'args ...string' is a slice of strings → “zero or more string arguments”
 	cctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(cctx, path)
+	cmd := exec.CommandContext(cctx, path, args...)
+	// 'args...' means unpack the slice back into arguments → “expand a slice into arguments"
 
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -35,7 +39,14 @@ func RunScript(ctx context.Context, path string, timeout time.Duration) (*Result
 	}
 
 	// Log everything in one place (useful for debugging).
-	log.Printf("run %q exit=%d stdout=%q stderr=%q", path, res.ExitCode, res.Stdout, res.Stderr)
+	// log.Printf("run %q exit=%d\nstdout:\n%s\nstderr:\n%s", path, res.ExitCode, res.Stdout, res.Stderr)
+
+	log.Printf("run %q exit=%d", path, res.ExitCode)
+
+	if debugdump.Enabled() {
+		debugdump.Dump("script_stdout", res.Stdout)
+		debugdump.Dump("script_stderr", res.Stderr)
+	}
 
 	if cctx.Err() == context.DeadlineExceeded {
 		return res, fmt.Errorf("command timed out after %s: %s", timeout, path)

@@ -1,4 +1,4 @@
-module github.com/alexgoodkarma/vpn-router-daemon
+module github.com/revolver-sys/vpn-router-daemon
 
 go 1.25.3
 
