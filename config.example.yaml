@@ -1,0 +1,23 @@
+# vpnrd minimal example configuration
+# This file intentionally contains NO secrets.
+# Copy to config.yaml and adjust for your environment.
+
+singbox:
+  config_path: "/usr/local/etc/sing-box/config.json"
+
+pf:
+  anchor_name: "vpnrd"
+  lan_interface: "en0"
+  tunnel_interface_prefix: "utun"
+
+health:
+  check_interval_sec: 10
+  dns_test_host: "1.1.1.1"
+  tcp_test_host: "8.8.8.8:53"
+
+policy:
+  fail_closed: true
+  allow_wan:
+    # Only allow traffic required to establish the tunnel.
+    # Replace with your VPN server IP if needed.
+    - "203.0.113.10"

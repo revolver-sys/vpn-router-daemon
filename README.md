@@ -156,3 +156,11 @@ vpnrd modifies system routing and `pf` rules.
 Incorrect configuration can disrupt connectivity.
 
 Use on a dedicated test node before production deployment.
+
+## Configuration
+
+A minimal configuration template is provided:
+
+See `config.example.yaml`.
+
+Copy it to `config.yaml` and adjust values for your environment.
