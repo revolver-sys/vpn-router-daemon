@@ -1,99 +1,158 @@
-# vpnrd — VPN Router Daemon for macOS (sing-box + pf kill-switch)
+# vpnrd
 
-vpnrd is a local VPN router / watchdog daemon for macOS.  
-It supervises a `sing-box` TUN tunnel and enforces a **pf-based kill-switch** so LAN clients only have internet access **through the tunnel**.
+**vpnrd** is a macOS-based VPN router daemon that supervises a `sing-box` TUN tunnel and enforces a strict `pf`-based kill-switch for LAN clients.
 
-This project is designed for hostile networks where short disconnects are common and policy enforcement must be strict.
+It is designed for environments where:
+- network interruptions are common,
+- policy enforcement must be fail-closed,
+- routing control must be explicit and auditable.
 
----
-
-## What vpnrd does
-
-- **Runs and supervises sing-box**
-  - TUN inbound (utun interface)
-  - controlled start/stop
-  - health checking
-
-- **Enforces a pf kill-switch (router mode)**
-  - LAN clients are NATed through the tunnel
-  - if the tunnel is down → LAN clients lose internet (fail-closed)
-  - optional minimal WAN allowlist (VPN server IPs, WAN DNS/NTP if desired)
-
-- **Self-heals**
-  - re-applies pf rules when needed
-  - recovers from transient failures without manual pfctl surgery
+This project turns a macOS machine into a deterministic VPN gateway.
 
 ---
 
-## Why pf (and not “just a VPN app”)
+## Design Goals
 
-A VPN app protects the local Mac.  
-vpnrd protects the **entire LAN behind the Mac** by turning the Mac into a strict policy router:
-- explicit allow/deny rules
-- predictable fail-closed behavior
-- auditable, reproducible configuration
+- Fail-closed network posture
+- Explicit packet policy via `pf`
+- Deterministic state transitions
+- Recoverable tunnel lifecycle
+- Minimal hidden automation
+- Operator visibility over magic
 
----
-
-## High-level architecture
-
-- `vpnrd` (Go daemon)
-  - lifecycle + watchdog
-  - state machine (up/down/recover)
-  - applies pf anchors and sysctl/network settings
-
-- `sing-box` (tunnel engine)
-  - produces `utunX` interface
-  - handles routing inside the tunnel
-
-- `pf` (policy enforcement)
-  - NAT + filtering + allowlist
-  - kill-switch rules anchored for clean enable/disable
+vpnrd is not a GUI VPN client.  
+It is infrastructure software.
 
 ---
 
-## Safety model (kill-switch)
+## Core Responsibilities
 
-**Default stance:** deny.  
-Only allow:
-1) traffic required to establish/maintain the tunnel (optional allowlist)
-2) traffic through the tunnel interface once it is healthy
+### 1. Tunnel Supervision
 
-If the tunnel goes down or becomes unhealthy:
-- pf remains in a fail-closed state
-- LAN clients lose WAN until recovery succeeds
+- Runs and supervises `sing-box`
+- Verifies TUN interface state
+- Monitors health signals
+- Restarts or recovers as required
 
----
+### 2. Policy Enforcement (Kill-Switch)
 
-## Repo structure (typical)
+`pf` rules are applied through controlled anchors to ensure:
 
-- `cmd/vpnrd/` — daemon entrypoint
-- `internal/` — configuration, watchdog, pf management, health checks
-- `dist/` — packaged configs/templates (if used)
-- `.config/` — example configs (if included)
+- LAN traffic is NATed only through the tunnel
+- WAN access is denied unless explicitly allowed
+- If the tunnel fails → traffic is blocked (fail-closed)
+- No silent fallback to direct WAN
 
----
+### 3. Router Mode
 
-## Development notes
+When configured as a gateway:
 
-This repo is intentionally CLI-first and ops-friendly:
-- explicit configs
-- minimal surprises
-- designed to be run headless on a dedicated Mac (router node)
+- LAN clients route through the macOS host
+- NAT is performed via `pf`
+- Traffic segmentation is explicit
+- Optional minimal WAN allowlist may be applied (VPN endpoint, DNS, NTP)
 
 ---
 
-## Roadmap
+## Architectural Overview
 
-- stronger health model (multi-signal: DNS/TCP/route/interface checks)
-- structured events/audit logs of policy state
-- “WAN minimal allowlist” helper tooling
-- future: multi-uplink / bonding layer integration
+LAN Clients
+│
+▼
+macOS (vpnrd)
+│
+├── sing-box (TUN interface utunX)
+│
+└── pf (NAT + filtering + kill-switch)
+│
+▼
+WAN
+
+
+vpnrd manages state.  
+`sing-box` manages encrypted transport.  
+`pf` enforces packet policy.
+
+Each component has a clearly separated responsibility.
 
 ---
 
-## Disclaimer
+## Failure Model
 
-This project configures system networking and pf rules.
-Use on a test machine first. Misconfiguration can cut off network access.
+vpnrd assumes hostile or unstable networks.
 
+If any of the following occurs:
+- TUN interface disappears
+- Health checks fail
+- sing-box exits unexpectedly
+
+Then:
+
+- pf remains in a restrictive state
+- LAN traffic is denied
+- Recovery logic is triggered
+- No implicit WAN fallback occurs
+
+The system prioritizes integrity over availability.
+
+---
+
+## Why pf?
+
+Application-level VPN clients protect the local machine.
+
+vpnrd uses `pf` because:
+
+- Packet filtering must be kernel-enforced
+- Policy must be explicit and inspectable
+- Kill-switch must not depend on application state alone
+- Router-mode requires deterministic NAT + filtering
+
+---
+
+## Operational Philosophy
+
+vpnrd favors:
+
+- explicit configuration
+- predictable behavior
+- auditability
+- minimal hidden side effects
+
+It avoids:
+
+- automatic policy drift
+- silent route changes
+- background heuristics without operator visibility
+
+---
+
+## Intended Use Cases
+
+- Dedicated macOS VPN router node
+- Segmented LAN environments
+- Fail-closed network setups
+- Research / lab environments requiring strict tunnel enforcement
+
+---
+
+## Status
+
+Early public release.  
+Core tunnel supervision and pf kill-switch logic implemented.
+
+Future work:
+- multi-uplink supervision
+- richer health signal evaluation
+- structured event logging
+- bonding layer integration
+
+---
+
+## Warning
+
+vpnrd modifies system routing and `pf` rules.
+
+Incorrect configuration can disrupt connectivity.
+
+Use on a dedicated test node before production deployment.
